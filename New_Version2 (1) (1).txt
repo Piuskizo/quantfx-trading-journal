@@ -1,0 +1,729 @@
+<!DOCTYPE html>
+<html lang="sw" class="dark">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>QuantFX Systems - Trading Journal (Improved)</title>
+
+  <!-- Tailwind -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = { darkMode: 'class' };
+  </script>
+
+  <!-- FontAwesome & Chart.js (loaded deferred for perf) -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <script defer src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;600;700&display=swap');
+    html,body { height:100%; margin:0; font-family:'Plus Jakarta Sans',sans-serif; background:#080d1a; color:#f3f4f6; }
+    .glass-card { background:rgba(15,23,42,0.75); backdrop-filter: blur(10px); border:1px solid rgba(255,255,255,0.04); }
+    .custom-scrollbar::-webkit-scrollbar{ width:6px;height:6px; } .custom-scrollbar::-webkit-scrollbar-thumb{ background:rgba(59,130,246,0.28); border-radius:4px; }
+    .sr-only{ position:absolute !important; height:1px; width:1px; overflow:hidden; clip:rect(1px,1px,1px,1px); white-space:nowrap; }
+    /* toast transition */
+    .toast-show{ transform: translateX(0); opacity:1; }
+    .modal-open{ overflow:hidden; }
+  </style>
+</head>
+<body class="min-h-screen flex flex-col custom-scrollbar">
+
+  <!-- TOAST -->
+  <div id="toast" role="status" aria-live="polite" class="fixed top-5 right-5 z-50 max-w-md w-full p-4 rounded-xl shadow-2xl glass-card transform translate-x-full opacity-0 transition-all duration-300" >
+    <div class="flex items-start gap-3">
+      <i id="toast-icon" class="fas fa-info-circle text-2xl text-blue-400 mt-1"></i>
+      <div class="flex-1">
+        <div id="toast-title" class="font-bold text-sm">Taarifa</div>
+        <div id="toast-msg" class="text-xs text-gray-300">Ujumbe hapa...</div>
+      </div>
+      <button aria-label="Close notification" onclick="closeToast()" class="text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+    </div>
+  </div>
+
+  <!-- MODAL -->
+  <div id="custom-modal" class="fixed inset-0 z-50 hidden items-center justify-center bg-black/70" role="dialog" aria-modal="true" aria-labelledby="modal-title">
+    <div class="glass-card max-w-lg w-full p-6 rounded-2xl relative" id="modal-inner" tabindex="-1">
+      <button onclick="closeModal()" aria-label="Funga modal" class="absolute top-4 right-4 text-gray-400 hover:text-white"><i class="fas fa-times"></i></button>
+      <div id="modal-content"></div>
+    </div>
+  </div>
+
+  <!-- AUTH -->
+  <main id="auth-container" class="min-h-screen flex items-center justify-center p-6">
+    <div class="w-full max-w-lg glass-card p-8 rounded-3xl border border-slate-800 shadow-2xl" role="region" aria-label="Authentication">
+      <div class="text-center mb-6">
+        <div class="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-gradient-to-tr from-blue-600 to-indigo-500 mb-3 shadow-lg">
+          <i class="fas fa-chart-line text-white"></i>
+        </div>
+        <h1 class="text-2xl font-extrabold">QuantFX Systems</h1>
+        <p class="text-xs text-gray-400">Trading Journal & Security OS</p>
+      </div>
+
+      <div class="flex bg-slate-900/80 p-1.5 rounded-xl mb-4" role="tablist" aria-label="Auth tabs">
+        <button id="tab-login" onclick="switchAuthTab('login')" class="flex-1 py-2 text-xs font-semibold rounded-lg bg-blue-600 text-white" role="tab" aria-selected="true">Ingia</button>
+        <button id="tab-register" onclick="switchAuthTab('register')" class="flex-1 py-2 text-xs font-semibold rounded-lg text-gray-400" role="tab" aria-selected="false">Fungua Account</button>
+      </div>
+
+      <form id="form-login" onsubmit="handleLogin(event)" class="space-y-3" aria-hidden="false">
+        <label class="block text-xs text-gray-300">Barua Pepe au Jina la Mtumiaji</label>
+        <input id="login-identifier" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white" required>
+
+        <label class="block text-xs text-gray-300">Nenosiri</label>
+        <div class="relative">
+          <input id="login-password" type="password" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white" required>
+          <button type="button" onclick="togglePasswordVisibility('login-password')" class="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400"><i class="fas fa-eye"></i></button>
+        </div>
+
+        <div id="login-error" class="hidden text-xs text-red-400"></div>
+
+        <div class="flex justify-between items-center">
+          <button type="submit" class="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold">Ingia</button>
+          <button type="button" onclick="showForgotPasswordModal()" class="text-xs text-blue-400">Umesahau?</button>
+        </div>
+      </form>
+
+      <form id="form-register" onsubmit="handleRegistration(event)" class="space-y-3 hidden" aria-hidden="true">
+        <label class="block text-xs text-gray-300">Jina Kamili</label>
+        <input id="reg-fullname" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white" required>
+        <label class="block text-xs text-gray-300">Username</label>
+        <input id="reg-username" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white" required>
+        <label class="block text-xs text-gray-300">Email</label>
+        <input id="reg-email" type="email" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white" required>
+        <label class="block text-xs text-gray-300">Nenosiri</label>
+        <input id="reg-password" type="password" onkeyup="checkPasswordStrength(this.value)" class="w-full bg-slate-900 border border-slate-700 rounded-xl py-2 px-3 text-xs text-white" required>
+        <div class="text-[11px] text-gray-400"><span id="pwd-req-len" class="text-red-400">• >=8</span> <span id="pwd-req-mix" class="text-red-400 ml-2">• Big, small, number, symbol</span></div>
+        <div class="flex justify-between items-center">
+          <button type="submit" class="px-4 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold">Tengeneza Akaunti</button>
+          <button type="button" onclick="switchAuthTab('login')" class="text-xs text-gray-400">Rudi Login</button>
+        </div>
+      </form>
+    </div>
+  </main>
+
+  <!-- APP (hidden until login) -->
+  <div id="app-container" class="hidden min-h-screen flex flex-col bg-[#070b14]">
+    <header class="glass-card sticky top-0 z-40 border-b px-4 py-3">
+      <div class="max-w-7xl mx-auto flex items-center justify-between">
+        <div class="flex items-center gap-3">
+          <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-blue-600 to-indigo-500 flex items-center justify-center font-bold text-white">QFX</div>
+          <div><h2 id="hdr-name" class="text-base font-extrabold">Mtumiaji</h2><p class="text-[10px] text-gray-400">@username</p></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <nav class="hidden md:flex gap-2" aria-label="Main">
+            <button id="nav-dashboard" onclick="switchView('dashboard')" class="px-3 py-1 rounded-lg bg-blue-600 text-white text-xs">Dash</button>
+            <button id="nav-journal" onclick="switchView('journal')" class="px-3 py-1 rounded-lg text-xs">Journal</button>
+            <button id="nav-gallery" onclick="switchView('gallery')" class="px-3 py-1 rounded-lg text-xs">Maktaba</button>
+            <button id="nav-calendar" onclick="switchView('calendar')" class="px-3 py-1 rounded-lg text-xs">Kalenda</button>
+          </nav>
+          <button onclick="logout()" class="p-2 rounded-xl bg-slate-800 text-gray-300"><i class="fas fa-power-off"></i></button>
+        </div>
+      </div>
+    </header>
+
+    <main class="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 space-y-6">
+      <!-- Dashboard -->
+      <section id="view-dashboard" class="space-y-4">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-gray-400">Net P&L</p><h3 id="stat-net-pnl" class="text-2xl font-extrabold text-emerald-400">$0.00</h3></div>
+          <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-gray-400">Win Rate</p><h3 id="stat-winrate" class="text-2xl font-extrabold text-blue-400">0%</h3></div>
+          <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-gray-400">Profit</p><h3 id="stat-profit" class="text-2xl font-extrabold text-emerald-400">$0.00</h3></div>
+          <div class="glass-card p-4 rounded-2xl"><p class="text-xs text-gray-400">Loss</p><h3 id="stat-loss" class="text-2xl font-extrabold text-red-400">$0.00</h3></div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div class="lg:col-span-2 glass-card p-4 rounded-2xl"><canvas id="equityChart" class="h-60"></canvas></div>
+          <div class="glass-card p-4 rounded-2xl"><canvas id="winLossChart" class="h-60"></canvas></div>
+        </div>
+      </section>
+
+      <!-- Journal -->
+      <section id="view-journal" class="hidden space-y-4">
+        <div class="glass-card p-4 rounded-2xl">
+          <form id="trade-form" onsubmit="saveTradeEntry(event)" class="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <input type="date" id="trade-date" class="bg-slate-900 p-2 rounded-xl" required>
+            <input id="trade-pair" placeholder="EUR/USD" class="bg-slate-900 p-2 rounded-xl" required>
+            <select id="trade-type" class="bg-slate-900 p-2 rounded-xl"><option>BUY</option><option>SELL</option></select>
+            <select id="trade-strategy" class="bg-slate-900 p-2 rounded-xl"><option>SMC</option><option>Price Action</option></select>
+            <input id="trade-pnl" type="number" step="0.01" placeholder="P&L" class="bg-slate-900 p-2 rounded-xl" required>
+            <input id="trade-notes" placeholder="Notes" class="bg-slate-900 p-2 rounded-xl">
+            <div class="md:col-span-3 flex gap-2">
+              <input id="file-before" type="file" accept="image/*" class="hidden" onchange="handleFileSelect(event,'before')">
+              <button type="button" onclick="document.getElementById('file-before').click()" class="px-3 py-2 bg-slate-800 rounded-xl text-xs">Upload Before</button>
+
+              <input id="file-after" type="file" accept="image/*" class="hidden" onchange="handleFileSelect(event,'after')">
+              <button type="button" onclick="document.getElementById('file-after').click()" class="px-3 py-2 bg-slate-800 rounded-xl text-xs">Upload After</button>
+
+              <input id="file-video" type="file" accept="video/*" class="hidden" onchange="handleFileSelect(event,'video')">
+              <button type="button" onclick="document.getElementById('file-video').click()" class="px-3 py-2 bg-slate-800 rounded-xl text-xs">Upload Video</button>
+
+              <button type="submit" class="ml-auto px-4 py-2 bg-blue-600 rounded-xl text-xs">Hifadhi</button>
+            </div>
+          </form>
+        </div>
+
+        <div class="glass-card p-4 rounded-2xl overflow-auto" style="max-height:40vh;">
+          <div class="flex justify-between items-center mb-2">
+            <div class="text-sm font-bold">Historia</div>
+            <div class="flex items-center gap-2">
+              <input id="journal-search" placeholder="Tafuta..." oninput="debouncedFilter()" class="bg-slate-900 p-2 rounded-xl text-xs">
+              <button onclick="exportCSV()" class="px-2 py-1 bg-slate-800 rounded text-xs">Export CSV</button>
+            </div>
+          </div>
+          <table class="w-full text-xs">
+            <thead><tr class="text-gray-400"><th>Tarehe</th><th>Pari</th><th>Aina</th><th>Strategy</th><th>P&L</th><th>Media</th><th>Act</th></tr></thead>
+            <tbody id="journal-table-body" class="align-top"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- Gallery -->
+      <section id="view-gallery" class="hidden space-y-4">
+        <div class="glass-card p-4 rounded-2xl">
+          <div id="gallery-grid" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+      </section>
+
+      <!-- Calendar -->
+      <section id="view-calendar" class="hidden space-y-4">
+        <div class="glass-card p-4 rounded-2xl">
+          <div class="flex justify-between items-center mb-2">
+            <div><button onclick="changeCalendarMonth(-1)" class="px-2 py-1 bg-slate-800 rounded">‹</button> <span id="calendar-month-title" class="ml-2 font-bold"></span> <button onclick="changeCalendarMonth(1)" class="px-2 py-1 bg-slate-800 rounded">›</button></div>
+            <div class="text-xs text-gray-400">Siku za Faida/Hasara</div>
+          </div>
+          <div class="grid grid-cols-7 gap-2 text-xs text-gray-400 font-bold mb-2">
+            <div>Jumapili</div><div>Jumatatu</div><div>Jumanne</div><div>Jumatano</div><div>Alhamisi</div><div>Ijumaa</div><div>Jumamosi</div>
+          </div>
+          <div id="calendar-grid" class="grid grid-cols-7 gap-2"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+/* =========================================================================
+   Utilities: small helpers (escape, debounce, hex/base64)
+   ========================================================================= */
+function escapeHtml(s){ if(!s) return ''; return String(s).replace(/[&<>"'`=\/]/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;','/':'&#x2F;','`':'&#96;','=':'&#61;'}[c]; }); }
+function debounce(fn, wait=300){ let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), wait); }; }
+
+/* =========================================================================
+   Crypto: PBKDF2 hashing for password (Web Crypto)
+   - store salt + derivedKey (hex)
+   ========================================================================= */
+async function generateSalt(len=16){
+  const buf = crypto.getRandomValues(new Uint8Array(len));
+  return btoa(String.fromCharCode(...buf));
+}
+async function deriveKey(password, salt, iterations=100_000){
+  const enc = new TextEncoder();
+  const passKey = await crypto.subtle.importKey('raw', enc.encode(password),'PBKDF2',false,['deriveBits']);
+  const saltBytes = Uint8Array.from(atob(salt), c => c.charCodeAt(0));
+  const bits = await crypto.subtle.deriveBits({name:'PBKDF2', salt: saltBytes, iterations, hash:'SHA-256'}, passKey, 256);
+  const arr = new Uint8Array(bits);
+  // return hex
+  return Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+
+/* =========================================================================
+   IndexedDB wrapper for trades & media
+   ========================================================================= */
+const DB_NAME = 'qfx-db', DB_VER = 1;
+function openDb(){ return new Promise((resolve, reject)=>{
+  const req = indexedDB.open(DB_NAME, DB_VER);
+  req.onupgradeneeded = e => {
+    const db = e.target.result;
+    if(!db.objectStoreNames.contains('trades')) db.createObjectStore('trades', { keyPath: 'id' });
+    if(!db.objectStoreNames.contains('media')) db.createObjectStore('media', { keyPath: 'id' });
+    if(!db.objectStoreNames.contains('users')) db.createObjectStore('users', { keyPath: 'username' });
+  };
+  req.onsuccess = () => resolve(req.result);
+  req.onerror = () => reject(req.error);
+}); }
+
+async function dbPut(store, value){
+  const db = await openDb();
+  return new Promise((res, rej)=>{
+    const tx = db.transaction(store, 'readwrite'), s = tx.objectStore(store);
+    const r = s.put(value);
+    r.onsuccess = ()=>res(r.result);
+    r.onerror = ()=>rej(r.error);
+  });
+}
+async function dbGetAll(store){
+  const db = await openDb();
+  return new Promise((res, rej)=>{
+    const tx = db.transaction(store, 'readonly'), s = tx.objectStore(store);
+    const r = s.getAll();
+    r.onsuccess = ()=>res(r.result);
+    r.onerror = ()=>rej(r.error);
+  });
+}
+async function dbGet(store, key){
+  const db = await openDb();
+  return new Promise((res, rej)=>{
+    const tx = db.transaction(store, 'readonly'), s = tx.objectStore(store);
+    const r = s.get(key);
+    r.onsuccess = ()=>res(r.result);
+    r.onerror = ()=>rej(r.error);
+  });
+}
+async function dbDelete(store, key){
+  const db = await openDb();
+  return new Promise((res, rej)=>{
+    const tx = db.transaction(store, 'readwrite'), s = tx.objectStore(store);
+    const r = s.delete(key);
+    r.onsuccess = ()=>res();
+    r.onerror = ()=>rej(r.error);
+  });
+}
+
+/* =========================================================================
+   Users: registration/login using IndexedDB users store (with derived key)
+   ========================================================================= */
+async function saveUserToDb(user){
+  // user: { username, fullname, email, salt, derivedKey (hex), isVerified, ...}
+  await dbPut('users', user);
+}
+async function getUserFromDb(usernameOrEmail){
+  const all = await dbGetAll('users');
+  return all.find(u=>u.username===usernameOrEmail || u.email===usernameOrEmail) || null;
+}
+
+/* =========================================================================
+   Image helper: resize image to max width and return Blob
+   ========================================================================= */
+function resizeImageFile(file, maxWidth=1200, quality=0.8){
+  return new Promise((res, rej)=>{
+    if(!file.type.startsWith('image/')) return res(file);
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = ()=>{
+      let {width, height} = img;
+      if(width <= maxWidth){ URL.revokeObjectURL(url); return res(file); }
+      const scale = maxWidth / width;
+      const cv = document.createElement('canvas');
+      cv.width = Math.round(width * scale);
+      cv.height = Math.round(height * scale);
+      const ctx = cv.getContext('2d');
+      ctx.drawImage(img,0,0,cv.width,cv.height);
+      cv.toBlob(blob=>{
+        URL.revokeObjectURL(url);
+        res(blob);
+      }, 'image/jpeg', quality);
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(url); rej(new Error('Image load failed')); };
+    img.src = url;
+  });
+}
+
+/* =========================================================================
+   Toasts & Modal focus trap
+   ========================================================================= */
+let toastTimer = null;
+function showToast(title, message, type='info'){
+  const t = document.getElementById('toast');
+  document.getElementById('toast-title').textContent = title;
+  document.getElementById('toast-msg').textContent = message;
+  const icon = document.getElementById('toast-icon');
+  icon.className = type==='error' ? 'fas fa-exclamation-circle text-red-400' : type==='success' ? 'fas fa-check-circle text-emerald-400' : 'fas fa-info-circle text-blue-400';
+  t.classList.add('toast-show');
+  t.style.transform = 'translateX(0)'; t.style.opacity = '1';
+  if(toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(()=>closeToast(), 4500);
+}
+function closeToast(){ const t=document.getElementById('toast'); t.classList.remove('toast-show'); t.style.transform='translateX(120%)'; t.style.opacity='0'; }
+
+/* Modal open/close with focus management */
+let lastFocusedEl = null;
+function openModal(html){
+  lastFocusedEl = document.activeElement;
+  const modal = document.getElementById('custom-modal');
+  document.getElementById('modal-content').innerHTML = html;
+  modal.classList.remove('hidden');
+  document.body.classList.add('modal-open');
+  // focus first focusable inside
+  setTimeout(()=>{ const focusable = modal.querySelector('button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'); if(focusable) focusable.focus(); }, 50);
+  // Escape handler
+  document.addEventListener('keydown', modalEscapeHandler);
+}
+function closeModal(){
+  const modal = document.getElementById('custom-modal');
+  modal.classList.add('hidden');
+  document.body.classList.remove('modal-open');
+  if(lastFocusedEl) lastFocusedEl.focus();
+  document.removeEventListener('keydown', modalEscapeHandler);
+}
+function modalEscapeHandler(e){ if(e.key === 'Escape') closeModal(); }
+
+/* =========================================================================
+   App State & helpers
+   ========================================================================= */
+let APP = { currentUser: null };
+
+/* =========================================================================
+   Registration & Login flows
+   ========================================================================= */
+async function handleRegistration(e){
+  e.preventDefault();
+  const fullname = document.getElementById('reg-fullname').value.trim();
+  const username = document.getElementById('reg-username').value.trim().toLowerCase();
+  const email = document.getElementById('reg-email').value.trim().toLowerCase();
+  const password = document.getElementById('reg-password').value;
+
+  if(!fullname||!username||!email||!password){ showToast('Kosa','Tafadhali jaza taarifa zote','error'); return; }
+  if(!checkPasswordStrength(password)){ showToast('Nenosiri','Nenosiri hafai', 'error'); return; }
+
+  const existing = await getUserFromDb(username) || await getUserFromDb(email);
+  if(existing){ showToast('Akaunti Ipo','Username au email imetumika', 'error'); return; }
+
+  const salt = await generateSalt();
+  const derivedKey = await deriveKey(password, salt);
+  const user = { username, fullname, email, salt, derivedKey, isVerified: true }; // Keep isVerified true for demo / or implement OTP
+  await saveUserToDb(user);
+  showToast('Imefanikiwa','Usajili umefanikiwa. Ingia.', 'success');
+  switchAuthTab('login');
+  document.getElementById('login-identifier').value = username;
+}
+
+async function handleLogin(e){
+  e.preventDefault();
+  const identifier = document.getElementById('login-identifier').value.trim().toLowerCase();
+  const password = document.getElementById('login-password').value;
+  const errBox = document.getElementById('login-error');
+
+  const user = await getUserFromDb(identifier);
+  if(!user){ errBox.textContent='Hakuna akaunti'; errBox.classList.remove('hidden'); return; }
+
+  // Verify password
+  const derived = await deriveKey(password, user.salt);
+  if(derived !== user.derivedKey){ errBox.textContent='Nenosiri si sahihi'; errBox.classList.remove('hidden'); return; }
+
+  errBox.classList.add('hidden');
+  APP.currentUser = user;
+  // show app
+  document.getElementById('auth-container').classList.add('hidden');
+  document.getElementById('app-container').classList.remove('hidden');
+  document.getElementById('hdr-name').textContent = user.fullname;
+  // load data
+  await loadUserDashboardData();
+  switchView('dashboard');
+  showToast('Karibu', `Habari ${user.fullname}`, 'success');
+}
+
+/* Forgot password - simplified flow (generates reset code shown in modal) */
+async function showForgotPasswordModal(){
+  openModal(`
+    <div>
+      <h3 id="modal-title" class="text-lg font-bold">Sahau Nenosiri</h3>
+      <p class="text-xs text-gray-300">Weka email/username ili kupata msimbo wa kurejesha (simulated)</p>
+      <input id="recover-identifier" class="w-full bg-slate-900 p-2 rounded mt-2 text-xs" placeholder="username or email">
+      <div class="mt-3 flex gap-2">
+        <button onclick="sendRecoveryEmail()" class="px-3 py-2 bg-blue-600 rounded text-xs">Tuma Msimbo</button>
+        <button onclick="closeModal()" class="px-3 py-2 bg-slate-700 rounded text-xs">Ghairi</button>
+      </div>
+    </div>
+  `);
+}
+async function sendRecoveryEmail(){
+  const id = document.getElementById('recover-identifier').value.trim().toLowerCase();
+  const user = await getUserFromDb(id);
+  if(!user){ showToast('Haipo','Hakuna akaunti', 'error'); return; }
+  const code = String(Math.floor(100000 + Math.random()*900000));
+  user.recoveryCode = code;
+  await saveUserToDb(user);
+  openModal(`<div><h3 class="font-bold">Msimbo wa kurejesha</h3><p class="font-mono text-2xl text-emerald-400 mt-2">${code}</p><p class="text-xs text-gray-300 mt-2">Tumia msimbo kubadilisha nenosiri</p><input id="input-recovery-otp" class="w-full bg-slate-900 p-2 rounded mt-2" placeholder="msimbo"><input id="input-new-password" type="password" class="w-full bg-slate-900 p-2 rounded mt-2" placeholder="Nenosiri jipya"><div class="mt-3"><button onclick="resetAccountAccess('${user.username}')" class="px-3 py-2 bg-emerald-600 rounded text-xs">Badilisha</button></div></div>`);
+}
+async function resetAccountAccess(username){
+  const otp = document.getElementById('input-recovery-otp').value.trim();
+  const newPwd = document.getElementById('input-new-password').value;
+  const user = await dbGet('users', username);
+  if(!user || user.recoveryCode !== otp){ showToast('Kosa','Msimbo si sahihi','error'); return; }
+  if(!checkPasswordStrength(newPwd)){ showToast('Nenosiri','Nenosiri hafai', 'error'); return; }
+  const salt = await generateSalt();
+  const derivedKey = await deriveKey(newPwd, salt);
+  user.salt = salt; user.derivedKey = derivedKey; user.recoveryCode = null;
+  await saveUserToDb(user);
+  closeModal();
+  showToast('Imefanikiwa','Nenosiri limebadilishwa', 'success');
+}
+
+/* =========================================================================
+   Trades: store trades in IndexedDB (media stored separately as Blobs)
+   ========================================================================= */
+async function saveMediaBlob(blob){
+  // store in media store with generated id
+  const id = 'm_' + Date.now() + '_' + Math.random().toString(36).slice(2,8);
+  // keep type and blob as-is (IndexedDB supports blobs)
+  await dbPut('media', { id, blob, createdAt: new Date().toISOString() });
+  return id;
+}
+async function getMediaUrl(mediaId){
+  const rec = await dbGet('media', mediaId);
+  if(!rec) return null;
+  // create object URL to use in <img> or <video>
+  return URL.createObjectURL(rec.blob);
+}
+async function saveTradeToDb(trade){
+  await dbPut('trades', trade);
+}
+async function getAllTrades(){
+  const all = await dbGetAll('trades');
+  // filter by current user
+  return all.filter(t=>t.username === APP.currentUser.username).sort((a,b)=>b.date.localeCompare(a.date));
+}
+async function deleteTrade(tradeId){
+  await dbDelete('trades', tradeId);
+}
+
+/* File select: resize image and store as blob in media store; for videos, store blob directly */
+async function handleFileSelect(e, kind){
+  const file = e.target.files[0];
+  if(!file) return;
+  if(file.type.startsWith('image/')){
+    const resized = await resizeImageFile(file, 1200, 0.75);
+    const id = await saveMediaBlob(resized);
+    // keep temp reference in window for next save
+    window['temp_' + kind] = id;
+    showToast('Imechaguliwa', `${kind} imehifadhiwa kwa muda`, 'success');
+  } else {
+    // video
+    const id = await saveMediaBlob(file);
+    window['temp_' + kind] = id;
+    showToast('Imechaguliwa', `${kind} video imehifadhiwa kwa muda`, 'success');
+  }
+}
+
+/* Save trade entry */
+async function saveTradeEntry(e){
+  e.preventDefault();
+  if(!APP.currentUser){ showToast('Haiwezi','Haujaingia', 'error'); return; }
+  const tdate = document.getElementById('trade-date').value;
+  const pair = document.getElementById('trade-pair').value.trim().toUpperCase();
+  const type = document.getElementById('trade-type').value;
+  const strategy = document.getElementById('trade-strategy').value;
+  const pnl = Number(document.getElementById('trade-pnl').value);
+  const notes = document.getElementById('trade-notes').value.trim();
+
+  const trade = {
+    id: 't_' + Date.now() + '_' + Math.random().toString(36).slice(2,6),
+    username: APP.currentUser.username,
+    date: tdate,
+    pair, type, strategy, pnl, notes,
+    mediaBefore: window.temp_before || null,
+    mediaAfter: window.temp_after || null,
+    mediaVideo: window.temp_video || null,
+    createdAt: new Date().toISOString()
+  };
+  await saveTradeToDb(trade);
+
+  // reset temp
+  window.temp_before = null; window.temp_after = null; window.temp_video = null;
+  document.getElementById('trade-form').reset();
+  showToast('Imehifadhiwa', 'Trade imehifadhiwa', 'success');
+  await renderDashboardChartsAndStats();
+  await renderJournalTable();
+}
+
+/* Render Journal Table - uses safe text insertion (textContent) and creates buttons with handlers */
+async function renderJournalTable(filter=''){
+  const tbody = document.getElementById('journal-table-body');
+  tbody.innerHTML = '';
+  const trades = await getAllTrades();
+  const filtered = trades.filter(t=>{
+    if(!filter) return true;
+    const q = filter.toUpperCase();
+    return (t.pair||'').toUpperCase().includes(q) || (t.strategy||'').toUpperCase().includes(q) || (t.notes||'').toUpperCase().includes(q);
+  });
+  if(!filtered.length){
+    const tr = document.createElement('tr');
+    const td = document.createElement('td'); td.colSpan=7; td.className='p-4 text-gray-400'; td.textContent='Hakuna rekodi';
+    tr.appendChild(td); tbody.appendChild(tr); return;
+  }
+
+  for(const t of filtered){
+    const tr = document.createElement('tr'); tr.className='text-xs';
+    const tdDate = document.createElement('td'); tdDate.textContent = t.date; tdDate.className='p-2';
+    const tdPair = document.createElement('td'); tdPair.textContent = t.pair; tdPair.className='p-2 font-bold';
+    const tdType = document.createElement('td'); tdType.textContent = t.type; tdType.className='p-2';
+    const tdStrat = document.createElement('td'); tdStrat.textContent = t.strategy; tdStrat.className='p-2';
+    const tdPnl = document.createElement('td'); tdPnl.textContent = (t.pnl>=0?'+':'') + '$' + Number(t.pnl).toFixed(2); tdPnl.className='p-2 font-mono ' + (t.pnl>=0?'text-emerald-400':'text-red-400');
+    const tdMedia = document.createElement('td'); tdMedia.className='p-2';
+    // media buttons
+    if(t.mediaBefore){ const b = document.createElement('button'); b.className='px-2 py-1 bg-blue-600 rounded text-white text-xs'; b.textContent='Before'; b.onclick = async ()=>{ const url = await getMediaUrl(t.mediaBefore); openMediaViewer(url, 'Before - '+t.pair, 'image'); }; tdMedia.appendChild(b); }
+    if(t.mediaAfter){ const b = document.createElement('button'); b.className='ml-2 px-2 py-1 bg-emerald-600 rounded text-white text-xs'; b.textContent='After'; b.onclick = async ()=>{ const url = await getMediaUrl(t.mediaAfter); openMediaViewer(url, 'After - '+t.pair, 'image'); }; tdMedia.appendChild(b); }
+    if(t.mediaVideo){ const b = document.createElement('button'); b.className='ml-2 px-2 py-1 bg-purple-600 rounded text-white text-xs'; b.textContent='Video'; b.onclick = async ()=>{ const url = await getMediaUrl(t.mediaVideo); openMediaViewer(url, 'Video - '+t.pair, 'video'); }; tdMedia.appendChild(b); }
+    const tdAct = document.createElement('td'); tdAct.className='p-2 text-right';
+    const del = document.createElement('button'); del.className='text-red-400'; del.innerHTML = '<i class="fas fa-trash"></i>'; del.onclick = async ()=>{ if(confirm('Futa?')){ await deleteTrade(t.id); showToast('Imefutwa','Trade imefutwa','info'); await renderJournalTable(document.getElementById('journal-search').value); await renderDashboardChartsAndStats(); } };
+    tdAct.appendChild(del);
+
+    tr.append(tdDate, tdPair, tdType, tdStrat, tdPnl, tdMedia, tdAct);
+    tbody.appendChild(tr);
+  }
+}
+
+/* Media viewer */
+function openMediaViewer(url, title, type){
+  if(!url){ showToast('Haipo','Media haipatikani','error'); return; }
+  if(type==='video'){
+    openModal(`<div><h4 id="modal-title" class="font-bold">${escapeHtml(title)}</h4><video src="${url}" controls class="w-full mt-3 rounded"></video></div>`);
+  } else {
+    openModal(`<div><h4 id="modal-title" class="font-bold">${escapeHtml(title)}</h4><img src="${url}" alt="${escapeHtml(title)}" class="w-full mt-3 rounded"></div>`);
+  }
+}
+
+/* Dashboard charts & stats */
+async function renderDashboardChartsAndStats(){
+  if(!APP.currentUser) return;
+  const trades = await getAllTrades();
+  let profits=0, losses=0, wins=0, lossesCount=0;
+  trades.forEach(t=>{ if(t.pnl>=0){profits+=Number(t.pnl); wins++;} else {losses+=Math.abs(Number(t.pnl)); lossesCount++;} });
+  const net = profits - losses; const total=trades.length; const winRate = total?((wins/total)*100).toFixed(1):'0.0';
+  document.getElementById('stat-net-pnl').textContent = (net>=0?'+':'-') + '$' + Math.abs(net).toFixed(2);
+  document.getElementById('stat-profit').textContent = '$' + profits.toFixed(2);
+  document.getElementById('stat-loss').textContent = '$' + losses.toFixed(2);
+  document.getElementById('stat-winrate').textContent = winRate + '%';
+
+  // simple charts (if Chart present)
+  if(window.Chart){
+    const sorted = [...trades].sort((a,b)=>new Date(a.date)-new Date(b.date));
+    const labels=['Start']; const data=[0]; let run=0;
+    sorted.forEach(t=>{ run += Number(t.pnl); labels.push(t.date); data.push(run); });
+    // equity
+    const eqCtx = document.getElementById('equityChart').getContext('2d');
+    if(window._eqChart) window._eqChart.destroy();
+    window._eqChart = new Chart(eqCtx, { type:'line', data:{ labels, datasets:[{ label:'Cumulative', data, borderColor:'#3b82f6', backgroundColor:'rgba(59,130,246,0.12)', fill:true }]}, options:{responsive:true, maintainAspectRatio:false}});
+    // win/loss donut
+    const wlCtx = document.getElementById('winLossChart').getContext('2d');
+    if(window._wlChart) window._wlChart.destroy();
+    window._wlChart = new Chart(wlCtx, { type:'doughnut', data:{ labels:['Wins','Losses'], datasets:[{ data:[wins, lossesCount], backgroundColor:['#10b981','#ef4444'] }]}, options:{responsive:true, maintainAspectRatio:false}});
+  }
+}
+
+/* Gallery render */
+async function renderGalleryView(){
+  if(!APP.currentUser) return;
+  const grid = document.getElementById('gallery-grid'); grid.innerHTML='';
+  const trades = await getAllTrades();
+  for(const t of trades){
+    if(t.mediaBefore){
+      const url = await getMediaUrl(t.mediaBefore);
+      const card = document.createElement('div'); card.className='glass-card rounded p-2';
+      const img = document.createElement('img'); img.src=url; img.className='w-full h-40 object-cover rounded'; img.onclick=()=>openMediaViewer(url, 'Before - '+t.pair, 'image');
+      card.appendChild(img);
+      grid.appendChild(card);
+    }
+    if(t.mediaAfter){
+      const url = await getMediaUrl(t.mediaAfter);
+      const card = document.createElement('div'); card.className='glass-card rounded p-2';
+      const img = document.createElement('img'); img.src=url; img.className='w-full h-40 object-cover rounded'; img.onclick=()=>openMediaViewer(url, 'After - '+t.pair, 'image');
+      card.appendChild(img); grid.appendChild(card);
+    }
+    if(t.mediaVideo){
+      const url = await getMediaUrl(t.mediaVideo);
+      const card = document.createElement('div'); card.className='glass-card rounded p-2 flex items-center justify-center bg-slate-900';
+      const btn = document.createElement('button'); btn.className='text-purple-400'; btn.innerHTML = '<i class="fas fa-play-circle fa-2x"></i>'; btn.onclick=()=>openMediaViewer(url, 'Video - '+t.pair, 'video');
+      card.appendChild(btn); grid.appendChild(card);
+    }
+  }
+  if(!grid.children.length) grid.innerHTML = '<div class="p-6 text-gray-400">Hakuna media</div>';
+}
+
+/* Calendar */
+function changeCalendarMonth(delta){ APP.currentCalendar = APP.currentCalendar || new Date(); APP.currentCalendar.setMonth(APP.currentCalendar.getMonth()+delta); renderCalendarView(); }
+async function renderCalendarView(){
+  if(!APP.currentUser) return;
+  const now = APP.currentCalendar || new Date();
+  const year = now.getFullYear(), month = now.getMonth();
+  const monthNames = ["Januari","Februari","Machi","Aprili","Mei","Juni","Julai","Agosti","Septemba","Oktoba","Novemba","Desemba"];
+  document.getElementById('calendar-month-title').textContent = monthNames[month] + ' ' + year;
+  const firstDay = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month+1, 0).getDate();
+  const grid = document.getElementById('calendar-grid'); grid.innerHTML='';
+  // collect P&L per date
+  const trades = await getAllTrades(); const pnlByDate = {};
+  trades.forEach(t => { pnlByDate[t.date] = (pnlByDate[t.date] || 0) + Number(t.pnl); });
+
+  for(let i=0;i<firstDay;i++) grid.innerHTML += '<div class="h-20 rounded-xl bg-slate-900/30 border"></div>';
+  for(let d=1; d<=daysInMonth; d++){
+    const date = new Date(year, month, d);
+    const dateStr = date.toISOString().split('T')[0];
+    const pnl = pnlByDate[dateStr] || 0;
+    const color = pnl>0 ? 'text-emerald-400' : pnl<0 ? 'text-red-400' : 'text-gray-400';
+    grid.innerHTML += `<div class="h-20 rounded-xl bg-slate-900/70 p-2 flex flex-col justify-between"><div class="flex justify-between text-xs"><span>${d}</span><span class="${color}">${pnl?((pnl>0?'+':'-')+'$'+Math.abs(pnl).toFixed(2)) : ''}</span></div></div>`;
+  }
+}
+
+/* Export CSV */
+async function exportCSV(){
+  const trades = await getAllTrades();
+  if(!trades.length){ showToast('Hakuna','Hakuna trades za ku-export','info'); return; }
+  const rows = [['date','pair','type','strategy','pnl','notes']];
+  trades.forEach(t=> rows.push([t.date,t.pair,t.type,t.strategy,t.pnl, (t.notes||'').replace(/\n/g,' ')]));
+  const csv = rows.map(r=>r.map(c=>`"${String(c).replace(/"/g,'""')}"`).join(',')).join('\n');
+  const blob = new Blob([csv], { type:'text/csv' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a'); a.href=url; a.download = 'trades.csv'; a.click(); URL.revokeObjectURL(url);
+}
+
+/* Small UI helpers */
+function switchAuthTab(tab){
+  const login = document.getElementById('form-login'), reg = document.getElementById('form-register');
+  if(tab==='login'){ login.classList.remove('hidden'); reg.classList.add('hidden'); document.getElementById('tab-login').setAttribute('aria-selected','true'); document.getElementById('tab-register').setAttribute('aria-selected','false'); }
+  else { reg.classList.remove('hidden'); login.classList.add('hidden'); document.getElementById('tab-register').setAttribute('aria-selected','true'); document.getElementById('tab-login').setAttribute('aria-selected','false'); }
+}
+function togglePasswordVisibility(id){ const i = document.getElementById(id); i.type = i.type === 'password' ? 'text' : 'password'; }
+function checkPasswordStrength(password){
+  const len = document.getElementById('pwd-req-len'), mix = document.getElementById('pwd-req-mix');
+  const isLen = password.length>=8;
+  const isMix = /[A-Z]/.test(password)&&/[a-z]/.test(password)&&/[0-9]/.test(password)&&/[^A-Za-z0-9]/.test(password);
+  len.className = isLen? 'text-emerald-400':'text-red-400'; mix.className = isMix? 'text-emerald-400':'text-red-400';
+  return isLen && isMix;
+}
+
+function switchView(view){
+  ['dashboard','journal','gallery','calendar'].forEach(v=>{ const el = document.getElementById('view-'+v); if(el) el.classList.add('hidden'); });
+  const t = document.getElementById('view-'+view); if(t) t.classList.remove('hidden');
+  ['nav-dashboard','nav-journal','nav-gallery','nav-calendar'].forEach(id=>{ const e = document.getElementById(id); if(e) e.classList.remove('bg-blue-600','text-white'); });
+  const active = document.getElementById('nav-'+view); if(active) active.classList.add('bg-blue-600','text-white');
+  if(view==='journal') renderJournalTable(document.getElementById('journal-search').value);
+  if(view==='gallery') renderGalleryView();
+  if(view==='calendar') renderCalendarView();
+}
+
+/* Debounced search binding */
+const debouncedFilter = debounce(async ()=>{
+  const q = document.getElementById('journal-search').value || '';
+  await renderJournalTable(q);
+}, 300);
+
+/* Startup & demo seeding */
+async function seedDemo(){
+  const users = await dbGetAll('users');
+  if(!users.length){
+    const demo = { username:'demouser', fullname:'Demo Trader', email:'demo@qfx', salt:await generateSalt(), derivedKey: null, isVerified:true };
+    // set demo password Demo123!
+    demo.derivedKey = await deriveKey('Demo123!', demo.salt);
+    await saveUserToDb(demo);
+    // demo trades
+    const demoTrades = [
+      { id:'t_demo_1', username:'demouser', date:'2026-09-01', pair:'EUR/USD', type:'BUY', strategy:'SMC', pnl:120.5, notes:'Demo', mediaBefore:null, mediaAfter:null, mediaVideo:null, createdAt:new Date().toISOString() },
+      { id:'t_demo_2', username:'demouser', date:'2026-09-03', pair:'XAU/USD', type:'SELL', strategy:'Breakout', pnl:-45.25, notes:'Demo loss', mediaBefore:null, mediaAfter:null, mediaVideo:null, createdAt:new Date().toISOString() }
+    ];
+    for(const t of demoTrades) await saveTradeToDb(t);
+  }
+}
+
+/* Logout */
+function logout(){ APP.currentUser=null; document.getElementById('app-container').classList.add('hidden'); document.getElementById('auth-container').classList.remove('hidden'); showToast('Umetoka','Umetoa successfully','info'); }
+
+/* Init on load */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  await seedDemo();
+  document.getElementById('trade-date').value = new Date().toISOString().split('T')[0];
+  switchAuthTab('login');
+  // keyboard shortcuts
+  document.addEventListener('keydown', (e)=>{ if(e.altKey && e.key==='g') switchView('gallery'); if(e.key==='/' && document.activeElement.tagName!=='INPUT') { e.preventDefault(); document.getElementById('journal-search').focus(); } });
+});
+</script>
+</body>
+</html>
